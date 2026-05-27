@@ -1,0 +1,18 @@
+{
+  "TFT_Microgrid": {
+    "params": 65542,
+    "train_time_s": 88.5,
+    "time_per_epoch_s": 4.425,
+    "test_loss_mse": 0.2164,
+    "test_mae": 0.2842
+  },
+  "inference": {
+    "model": "TFT_Microgrid",
+    "mean_ms": 109.718,
+    "std_ms": 32.874,
+    "p50_ms": 114.627,
+    "p95_ms": 153.707,
+    "p99_ms": 177.251,
+    "throughput_pred_s": 9.1
+  }
+}

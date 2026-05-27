@@ -1,0 +1,25 @@
+{
+  "LSTM_Microgrid": {
+    "params": 30403,
+    "train_time_s": 56.86,
+    "time_per_epoch_s": 2.843,
+    "test_loss_mse": 0.201,
+    "test_mae": 0.2654
+  },
+  "BiLSTM_Microgrid": {
+    "params": 77123,
+    "train_time_s": 93.06,
+    "time_per_epoch_s": 4.653,
+    "test_loss_mse": 0.2353,
+    "test_mae": 0.2851
+  },
+  "inference": {
+    "model": "BiLSTM_Microgrid",
+    "mean_ms": 65.615,
+    "std_ms": 19.582,
+    "p50_ms": 58.631,
+    "p95_ms": 110.035,
+    "p99_ms": 131.269,
+    "throughput_pred_s": 15.2
+  }
+}

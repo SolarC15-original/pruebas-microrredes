@@ -1,0 +1,25 @@
+{
+  "CNN1D_Microgrid": {
+    "params": 25411,
+    "train_time_s": 13.26,
+    "time_per_epoch_s": 0.663,
+    "test_loss_mse": 0.2463,
+    "test_mae": 0.3041
+  },
+  "TCN_Microgrid": {
+    "params": 51107,
+    "train_time_s": 38.66,
+    "time_per_epoch_s": 1.933,
+    "test_loss_mse": 0.2278,
+    "test_mae": 0.3012
+  },
+  "inference": {
+    "model": "TCN_Microgrid",
+    "mean_ms": 58.838,
+    "std_ms": 7.699,
+    "p50_ms": 57.51,
+    "p95_ms": 69.008,
+    "p99_ms": 100.509,
+    "throughput_pred_s": 17.0
+  }
+}
