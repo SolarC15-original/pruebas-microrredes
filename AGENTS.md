@@ -1,6 +1,6 @@
 # Microredes — Resumen del proyecto
 
-## Dataset
+## Datasets anteriores (Rye Microgrid - Zenodo)
 - **Rye Microgrid** (Zenodo, Noruega): `rye_generation_and_load.csv`
 - ~8,266 filas horarias (2020-01-01 → 2020-12-11), 3 columnas: `Consumption`, `Solar`, `Wind`
 - Autocorrelación real: Solar ρ=0.91 lag-1, ρ=0.70 lag-24 (ciclo día/noche)
@@ -8,55 +8,15 @@
 - 14 NaN en Wind (ya manejados con `.dropna()`)
 - URL: https://zenodo.org/records/4448894
 
-## Estructura
+## Estructura anterior
 ```
 pruebas microrredes/
-├── red convolucional/
-│   ├── ProtoPy.py              — CNN 1D + TCN (Python, 20 epochs)
-│   ├── node_project/ProtoJS.js  — CNN 1D (Node.js/tfjs-node)
-│   ├── graficas.py              — comparativa_py_vs_js.png
-│   ├── graficas_error.py        — error_metrics_comparativa.png (MAE/MSE bar)
-│   ├── graficas_pred_vs_real.py — pred_vs_real.png (3 targets, 150 muestras)
-│   ├── kaggle_data/dataset.csv
-│   └── exported_model/
-│       ├── model.keras          — TCN_Microgrid
-│       ├── scaler_params.json    — seq_len, feature_cols, target_cols, X_mean, X_scale, y_mean, y_scale
-│       ├── metrics_python.json
-│       └── metrics_js.json
-├── Long Short-Term Memory/
-│   ├── ProtoPy_LSTM.py          — LSTM + BiLSTM (Python, 20 epochs)
-│   ├── node_project/ProtoJS_LSTM.js
-│   ├── graficas_LSTM.py
-│   ├── graficas_error.py
-│   ├── graficas_pred_vs_real.py
-│   ├── kaggle_data/dataset.csv
-│   └── exported_model/ (igual que CNN, BiLSTM_Microgrid)
-└── temporal fusion transformers/
-    ├── ProtoPy_TFT.py           — TFT (Python, 20 epochs)
-    ├── node_project/ProtoJS_TFT.js
-    ├── graficas_TFT.py
-    ├── graficas_error.py
-    ├── graficas_pred_vs_real.py
-    ├── kaggle_data/dataset.csv
-    └── exported_model/ (TFT_Microgrid, con Lambda layer)
+├── red convolucional/          — CNN 1D + TCN (Python, 20 epochs)
+├── Long Short-Term Memory/     — LSTM + BiLSTM (Python, 20 epochs)
+└── temporal fusion transformers/ — TFT simplificado (Python, 20 epochs)
 ```
 
-## Columnas (feature_cols == target_cols)
-```python
-feature_cols = ['Consumption', 'Solar', 'Wind']
-target_cols  = ['Consumption', 'Solar', 'Wind']
-```
-Las 3 son autoregresivas (se usan como features en los 24 pasos anteriores para predecir el próximo paso).
-
-## Pipeline estándar
-1. Cargar CSV con `load_rye_dataset()` del proto local (`kaggle_data/dataset.csv`)
-2. `create_sequences(data, feature_cols, target_cols, seq_len=24)` → X (N, 24, 3), y (N, 3)
-3. Split cronológico 80/20
-4. Normalización Z-score fit en train, transform en test
-5. Exportar `scaler_params.json` con medias/std de X e y
-6. Entrenar, guardar `model.keras`, exportar `metrics_python.json`
-
-## Resultados (20 epochs, Rye dataset)
+## Resultados modelos anteriores (Rye dataset, 20 epochs)
 
 | Modelo | Mejor target | MAE Z (mejor) | vs naive | R² |
 |---|---|---|---|---|
@@ -64,22 +24,91 @@ Las 3 son autoregresivas (se usan como features en los 24 pasos anteriores para 
 | **LSTM** | **Solar** | **0.123** | **−78 %** | — |
 | TFT | Solar | 0.150 | −74 % | +0.69 (Wind) |
 
-## Problemas conocidos
-- `tfjs.converters.save_keras_model` falla por incompatibilidad de protobuf (gencode 6.31.1 vs runtime 5.29.6). Workaround: guardar `model.keras` y convertir manualmente.
-- TFT guardado con `Lambda` layer → al cargar requiere `safe_mode=False` y `custom_objects`. El script `graficas_pred_vs_real.py` de TFT reconstruye el modelo desde cero y carga solo los pesos.
-- JS LSTM/TFT usan `@tensorflow/tfjs-node 4.23.0-rc.0` — no tiene `multiHeadAttention`.
+---
 
-## Mejoras pendientes para TFT
-1. GRN real (no Flatten + Dense) manteniendo eje temporal
-2. Decoder LSTM + attention (no GlobalAveragePooling1D)
-3. GRN con gating real vs sigmoid simple
-4. Cosine decay + gradient clipping + early stopping
-5. seq_len=48, d_model=128, num_heads=8
-6. Agregar features meteorológicos de `met_data.h5`
-7. Lags 24h/48h como features adicionales
-8. Salida por cuantiles (p10/p50/p90)
+# TFT FINAL — Nuevo proyecto (2026-05-26)
 
-## Comandos recurrentes
+## Contexto
+Se migró del dataset Rye Microgrid (Zenodo) a **datos propios de MongoDB** de una microrred multisensor en Colombia (coordenadas aproximadas: 0.7°N, 77.6°W — zona andina). El objetivo es **predicción horaria multi-variable orientada a estimación de energía para la carga y predicción de consumo**.
+
+## Base de datos MongoDB
+```
+mongodb+srv://root:SISTEMA2025qwer@clusterinteligente.qnejnxi.mongodb.net/
+Database: sistema_inteligente_db
+```
+
+## Sensores disponibles (datos reales)
+
+| Sensor | Colección MongoDB | Datos | Período | Frecuencia |
+|---|---|---|---|---|
+| Energy Tablero 2 | `69e50396cc47b3a12324e64f` | VA, VB, Fre | 26-abr → 26-may (30 días) | ~57s |
+| Temperatura PV | `69ee990dcc47b3a12324e851` | Temp | 26-abr → 17-may (21 días) | ~65s |
+| Sensor_de_potencia | `69da6927ff371e558d1a33aa` | **OMITIR** — solo 3h de prueba | — | — |
+| panel01 | `69de4a392a1d2949a3c94226` | **OMITIR** — solo 3h de prueba | — | — |
+| Energy Tablero Principal | `69e502d6cc47b3a12324e644` | **Sin uso** (colección vacía) | — | — |
+
+## Relación sensores → energía
+
+| Variable | Relación con energía |
+|---|---|
+| **Fre** (~60Hz) | Desviaciones de 60Hz ↔ carga de red. Proxy de consumo/demanda |
+| **VA, VB** (~125V) | Estabilidad de voltaje — indica demanda vs suministro |
+| **Temp panel PV** | Proxy de irradiación solar → generación PV |
+| **shortwave_radiation** (Open-Meteo) | **Directo** — predicción generación solar real |
+
+## Targets del modelo
+
+| Target | Interpretación energética |
+|---|---|
+| **Fre** | Proxy de carga/consumo de red |
+| **Temp** | Proxy de generación solar (irradiación) |
+| **VA** | Estabilidad del sistema |
+| **VB** | Estabilidad del sistema |
+
+## Relación clima → generación energética
+
+```
+shortwave_radiation (Open-Meteo) → generación solar estimada (kWh)
+wind_speed_10m → pérdidas por convección en paneles
+temp_2m → eficiencia paneles PV (derate factor)
+cloud_cover → atenuación solar
+```
+
+## Arquitectura TFT completa
+- GRN real con gating (mantiene eje temporal, no Flatten+Dense)
+- Variable Selection Network (GRN + softmax weights por feature)
+- LSTM Encoder + Decoder LSTM con Multi-Head Self-Attention
+- d_model=128, num_heads=8
+- seq_len=48 (48 horas de historia)
+- Salida multi-step: 24 horas ahead × 4 targets = 96 salidas
+- Cosine decay + gradient clipping + early stopping
+
+## Estructura TFT final
+```
+TFT final/
+├── 01_fetch_mongodb.py     # Extraer VA, VB, Fre, Temp, resamplear a 1h
+├── 02_fetch_weather.py     # Open-Meteo API para el período
+├── 03_merge_dataset.py     # Merge hourly + interpolar gap + guardar microgrid_hourly.csv
+├── 04_train_tft.py         # TFT completo + entrenamiento
+├── 05_evaluate.py          # Gráficas MAE/MSE/R²
+├── 06_predict.py           # Script de inferencia
+└── kaggle_data/
+    └── microgrid_hourly.csv
+```
+
+## Pipeline de datos
+1. MongoDB → `createAt` (datetime BSON) → resample hourly (promedio ~60 lecturas/hora)
+2. Open-Meteo → datos horarios del mismo período
+3. Join por timestamp de hora exacta
+4. **Interpolación lineal del gap de 9 días en Temp PV (17-may → 26-may)**
+
+## Pending para TFT final
+1. Temperatura PV se detuvo el 17-may → gap de 9 días a interpolar linealmente
+2. Más datos necesarios para entrenamiento sólido (idealmente 30+ días después de que Temp PV retome)
+3. Considerar instalar sensores de corriente/potencia para targets más completos (I, P, E)
+4. Energy Tablero Principal (`69e502d6..`) coleccion vacía — sin datos disponibles
+
+## Comandos recurrentes (proyectos anteriores)
 ```bash
 # Entrenar
 cd "red convolucional" && python3 ProtoPy.py
